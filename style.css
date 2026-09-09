@@ -1,0 +1,41 @@
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#f5f6f8;color:#111;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.app{max-width:720px;margin:0 auto;padding:18px 14px 40px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+h1{font-size:26px;margin:0}
+.subtitle{font-size:13px;color:#666;margin-top:2px}
+.icon-btn{border:0;background:transparent;font-size:26px;padding:4px 6px}
+.search-wrap{display:grid;grid-template-columns:1fr auto;gap:8px}
+#searchInput{width:100%;padding:15px 14px;font-size:19px;border:1px solid #cbd0d6;border-radius:12px;background:#fff}
+.search-wrap button{border:0;border-radius:10px;padding:0 14px;background:#e8eaed}
+.meta{display:flex;justify-content:space-between;gap:10px;padding:10px 2px 12px;font-size:13px;color:#666}
+.results{display:grid;gap:8px}
+.result-item{width:100%;text-align:left;background:#fff;border:1px solid #e0e3e7;border-radius:12px;padding:14px}
+.result-kana{font-size:19px;font-weight:700}
+.result-code{font-size:13px;color:#666;margin-top:5px;word-break:break-all}
+.empty{background:#fff;border:1px solid #e0e3e7;border-radius:12px;padding:20px;text-align:center;color:#666}
+.hidden{display:none!important}
+.back-btn{border:0;background:transparent;padding:4px 0 10px;font-size:16px}
+.detail-card{background:#fff;border:1px solid #e0e3e7;border-radius:14px;padding:18px}
+.label{font-size:13px;color:#666;margin-top:8px}
+.detail-name{font-size:25px;font-weight:800;margin:4px 0 18px}
+.detail-code{font-size:23px;font-weight:800;letter-spacing:.4px;word-break:break-all;background:#f3f4f6;border-radius:10px;padding:14px;margin-top:5px;user-select:all}
+.primary{width:100%;border:0;border-radius:10px;padding:14px;margin-top:14px;background:#111;color:#fff;font-weight:700}
+.barcode-area{margin-top:24px}
+.barcode-box{min-height:115px;border:2px dashed #cbd0d6;border-radius:10px;margin-top:6px;display:grid;place-items:center;padding:14px;background:#fff}
+.barcode-placeholder{color:#777;text-align:center}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.38);display:grid;place-items:center;padding:16px;z-index:100}
+.modal-card{width:min(560px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;padding:18px}
+.modal-head{display:flex;justify-content:space-between;align-items:center}
+.modal-head h2{margin:0}
+.file-label{display:block;margin-top:16px;padding:14px;border:1px solid #d5d9de;border-radius:10px}
+.file-label input{display:block;width:100%;margin-top:8px}
+.mapping{margin-top:14px;padding:14px;background:#f5f6f8;border-radius:10px}
+.mapping label{display:block;margin-top:10px}
+.mapping select{width:100%;padding:10px;margin-top:4px}
+.message{font-size:14px;min-height:1.5em;margin-top:12px}
+.danger{width:100%;border:0;border-radius:10px;padding:12px;background:#eee}
+hr{border:0;border-top:1px solid #e4e6e9;margin:18px 0}
+@media(max-width:430px){.app{padding-left:12px;padding-right:12px}.detail-code{font-size:21px}}

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="地点コード検索">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>ガス配送 地点コード検索</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="app">
+  <header class="header">
+    <div>
+      <h1>地点コード検索</h1>
+      <div class="subtitle">ガス配送用</div>
+    </div>
+    <button id="settingsBtn" class="icon-btn" type="button" aria-label="設定">⚙︎</button>
+  </header>
+
+  <section class="search-wrap">
+    <input id="searchInput" type="search" placeholder="氏名カナを入力" autocomplete="off" autocapitalize="off">
+    <button id="clearBtn" type="button">クリア</button>
+  </section>
+
+  <section class="meta">
+    <span id="dataCount">データ未登録</span>
+    <span id="updatedAt"></span>
+  </section>
+
+  <section id="results" class="results"></section>
+
+  <section id="detail" class="hidden">
+    <button id="backBtn" class="back-btn" type="button">← 戻る</button>
+    <div class="detail-card">
+      <div class="label">氏名カナ</div>
+      <div id="detailKana" class="detail-name"></div>
+
+      <div class="label">地点コード</div>
+      <div id="detailCode" class="detail-code"></div>
+
+      <button id="copyBtn" class="primary" type="button">地点コードをコピー</button>
+
+      <div class="barcode-area">
+        <div class="label">バーコード</div>
+        <div id="barcodeMount" class="barcode-box">
+          <div class="barcode-placeholder">
+            バーコード仕様確認後にここへ実装
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="settingsModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2>データ設定</h2>
+      <button id="closeSettingsBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <label class="file-label">
+      CSVを選択
+      <input id="csvFile" type="file" accept=".csv,text/csv">
+    </label>
+
+    <div id="mappingPanel" class="mapping hidden">
+      <p>列名を自動判定できない場合だけ選択してください。</p>
+      <label>氏名カナ
+        <select id="kanaColumn"></select>
+      </label>
+      <label>地点コード
+        <select id="codeColumn"></select>
+      </label>
+      <button id="applyMappingBtn" class="primary" type="button">この列で取り込む</button>
+    </div>
+
+    <div id="importMessage" class="message"></div>
+
+    <hr>
+    <button id="clearDataBtn" class="danger" type="button">登録データを削除</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

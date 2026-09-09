@@ -1,0 +1,8 @@
+{
+  "name": "ガス配送 地点コード検索",
+  "short_name": "地点コード",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff"
+}
