@@ -1,5 +1,6 @@
-const DATA_KEY = "gas_customers_v2";
-const META_KEY = "gas_customers_meta_v2";
+const DATA_KEY = "gas_customers_v7";
+const META_KEY = "gas_customers_meta_v7";
+const OLD_DATA_KEYS = ["gas_customers_v2", "gas_customers_v3", "gas_customers_v4", "gas_customers_v5", "gas_customers_v6"];
 
 const $ = id => document.getElementById(id);
 const searchInput = $("searchInput");
@@ -25,12 +26,13 @@ const codeColumn = $("codeColumn");
 const applyMappingBtn = $("applyMappingBtn");
 const clearDataBtn = $("clearDataBtn");
 
-let customers = loadJSON(DATA_KEY, []);
-let pendingRows = null;
-
 function loadJSON(key, fallback) {
-  try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
-  catch { return fallback; }
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function normalize(v) {
@@ -42,9 +44,39 @@ function normalize(v) {
 
 function escapeHtml(s) {
   return String(s ?? "")
-    .replaceAll("&","&amp;").replaceAll("<","&lt;")
-    .replaceAll(">","&gt;").replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function normalizeCustomer(c) {
+  // v3以前の {kana, code} も壊さず読めるようにする
+  const name = String(c?.name ?? c?.氏名 ?? "").trim();
+  const kana = String(c?.kana ?? c?.氏名カナ ?? "").trim();
+  const code = String(c?.code ?? c?.配送地点バーコード ?? c?.地点コード ?? "").trim();
+  return { name, kana, code };
+}
+
+let customers = loadJSON(DATA_KEY, []).map(normalizeCustomer);
+let pendingRows = null;
+
+// v7: 旧データに氏名・カナ・コードが揃っていれば自動移行。
+// 旧形式で氏名が欠ける場合は誤検索防止のため再取込を要求する。
+if (!customers.length) {
+  for (const key of OLD_DATA_KEYS) {
+    const old = loadJSON(key, []);
+    if (!Array.isArray(old) || !old.length) continue;
+    const migrated = old.map(normalizeCustomer).filter(c => (c.name || c.kana) && c.code);
+    const withName = migrated.filter(c => c.name).length;
+    if (migrated.length && withName >= Math.max(1, Math.floor(migrated.length * 0.8))) {
+      customers = migrated;
+      localStorage.setItem(DATA_KEY, JSON.stringify(customers));
+      localStorage.setItem(META_KEY, JSON.stringify({ updated: "旧データ移行", schema: 8 }));
+      break;
+    }
+  }
 }
 
 function updateMeta() {
@@ -54,11 +86,11 @@ function updateMeta() {
 }
 
 function saveCustomers(data) {
-  customers = data;
-  localStorage.setItem(DATA_KEY, JSON.stringify(data));
+  customers = data.map(normalizeCustomer);
+  localStorage.setItem(DATA_KEY, JSON.stringify(customers));
   const d = new Date();
   const stamp = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
-  localStorage.setItem(META_KEY, JSON.stringify({updated: stamp}));
+  localStorage.setItem(META_KEY, JSON.stringify({ updated: stamp, schema: 8 }));
   updateMeta();
 }
 
@@ -78,29 +110,90 @@ function renderResults() {
     return;
   }
 
-  const matched = customers.filter(c => {
+  const allMatched = customers.filter(c => {
     const name = normalize(c.name);
     const kana = normalize(c.kana);
     return name.includes(q) || kana.includes(q);
-  }).slice(0, 100);
+  });
+  const matched = allMatched.slice(0, 100);
 
   if (!matched.length) {
-    results.innerHTML = '<div class="empty">該当なし</div>';
+    results.innerHTML = `<div class="empty">「${escapeHtml(searchInput.value)}」は該当なし</div>`;
     return;
   }
 
-  matched.forEach(c => {
+  const count = document.createElement("div");
+  count.className = "hit-count";
+  count.textContent = `${allMatched.length}件ヒット`;
+  results.appendChild(count);
+
+  for (const c of matched) {
     const b = document.createElement("button");
     b.className = "result-item";
-    const name = c.name || c.kana || "";
-    const kanaLine = c.kana && normalize(c.kana) !== normalize(name)
-      ? `<div class="result-kana-sub">${escapeHtml(c.kana)}</div>` : "";
-    b.innerHTML = `<div class="result-kana">${escapeHtml(name)}</div>
-                   ${kanaLine}
-                   <div class="result-code">${escapeHtml(c.code)}</div>`;
+    const title = c.name || c.kana || "(氏名なし)";
+    const kanaLine = c.kana
+      ? `<div class="result-kana-sub">${escapeHtml(c.kana)}</div>`
+      : "";
+    b.innerHTML = `<div class="result-kana">${escapeHtml(title)}</div>${kanaLine}<div class="result-code">${escapeHtml(c.code)}</div>`;
     b.addEventListener("click", () => showDetail(c));
     results.appendChild(b);
+  }
+}
+
+
+// 実物写真を読み取り確認した結果：バーコード規格は CODABAR（NW-7）
+const CODABAR = {
+  "0":"101010011","1":"101011001","2":"101001011","3":"110010101",
+  "4":"101101001","5":"110101001","6":"100101011","7":"100101101",
+  "8":"100110101","9":"110100101","-":"101001101","$":"101100101",
+  ":":"1101011011","/":"1101101011",".":"1101101101","+":"101100110011",
+  "A":"1011001001","B":"1001001011","C":"1010010011","D":"1010011001"
+};
+
+function codabarImageData(text) {
+  let raw = String(text ?? "").trim();
+  if (!raw) return "";
+
+  // CSVは a...b。NW-7のスタート/ストップ文字として A...B に正規化する。
+  let s = raw.toUpperCase();
+  if (!CODABAR[s[0]] || !CODABAR[s[s.length - 1]]) return "";
+  if ([...s].some(ch => !CODABAR[ch])) return "";
+
+  let bits = "0000000000";
+  [...s].forEach((ch, i) => {
+    bits += CODABAR[ch];
+    if (i < s.length - 1) bits += "0";
   });
+  bits += "0000000000";
+
+  const module = 3;
+  const barH = 92;
+  const width = bits.length * module;
+  let rects = "";
+  for (let i = 0; i < bits.length; i++) {
+    if (bits[i] === "1") {
+      rects += `<rect x="${i * module}" y="0" width="${module}" height="${barH}" fill="black"/>`;
+    }
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="126" viewBox="0 0 ${width} 126">
+    <rect width="100%" height="100%" fill="white"/>
+    ${rects}
+    <text x="50%" y="117" text-anchor="middle" font-family="monospace" font-size="18" letter-spacing="2" fill="black">${raw}</text>
+  </svg>`;
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+
+function renderBarcode(text) {
+  const img = $("barcodeImage");
+  const src = codabarImageData(text);
+  if (!src) {
+    img.removeAttribute("src");
+    img.alt = "バーコードを表示できません";
+    return;
+  }
+  img.src = src;
+  img.alt = String(text ?? "");
 }
 
 function showDetail(c) {
@@ -109,6 +202,8 @@ function showDetail(c) {
   detailCode.textContent = c.code || "";
   results.classList.add("hidden");
   detail.classList.remove("hidden");
+  // 表示状態になってから描画。iPhone Safari/PWA対策。
+  renderBarcode(c.code || "");
 }
 
 function parseCSV(text) {
@@ -117,17 +212,17 @@ function parseCSV(text) {
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (quoted) {
-      if (ch === '"' && text[i+1] === '"') { field += '"'; i++; }
+      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
       else if (ch === '"') quoted = false;
       else field += ch;
     } else {
       if (ch === '"') quoted = true;
       else if (ch === ",") { row.push(field); field = ""; }
-      else if (ch === "\n") { row.push(field.replace(/\r$/,"")); rows.push(row); row = []; field = ""; }
+      else if (ch === "\n") { row.push(field.replace(/\r$/, "")); rows.push(row); row = []; field = ""; }
       else field += ch;
     }
   }
-  if (field.length || row.length) { row.push(field.replace(/\r$/,"")); rows.push(row); }
+  if (field.length || row.length) { row.push(field.replace(/\r$/, "")); rows.push(row); }
   return rows.filter(r => r.some(v => String(v).trim() !== ""));
 }
 
@@ -150,12 +245,12 @@ function buildData(rows, nameIdx, kanaIdx, codeIdx) {
   return rows.slice(1).map(r => ({
     name: nameIdx >= 0 ? String(r[nameIdx] ?? "").trim() : "",
     kana: kanaIdx >= 0 ? String(r[kanaIdx] ?? "").trim() : "",
-    code: String(r[codeIdx] ?? "").trim()
+    code: codeIdx >= 0 ? String(r[codeIdx] ?? "").trim() : ""
   })).filter(x => (x.name || x.kana) && x.code);
 }
 
 function fillMapping(headers) {
-  const opts = headers.map((h,i)=>`<option value="${i}">${escapeHtml(h || `列${i+1}`)}</option>`).join("");
+  const opts = headers.map((h, i) => `<option value="${i}">${escapeHtml(h || `列${i + 1}`)}</option>`).join("");
   nameColumn.innerHTML = '<option value="-1">使用しない</option>' + opts;
   kanaColumn.innerHTML = '<option value="-1">使用しない</option>' + opts;
   codeColumn.innerHTML = opts;
@@ -164,7 +259,7 @@ function fillMapping(headers) {
 async function readFileWithFallback(file) {
   const buf = await file.arrayBuffer();
   try {
-    const t = new TextDecoder("utf-8", {fatal:true}).decode(buf).replace(/^\uFEFF/, "");
+    const t = new TextDecoder("utf-8", { fatal: true }).decode(buf).replace(/^\uFEFF/, "");
     if (!t.includes("�")) return t;
   } catch {}
   try {
@@ -186,16 +281,9 @@ async function handleCSV(file) {
   }
 
   const headers = rows[0];
-  const nameIdx = detectColumn(headers, [
-    "氏名","顧客名","需要家名","お客様名","客先名","顧客氏名"
-  ]);
-  const kanaIdx = detectColumn(headers, [
-    "氏名カナ","顧客名カナ","需要家名カナ","お客様名カナ","客先名カナ","カナ","フリガナ","ﾌﾘｶﾞﾅ"
-  ]);
-  const codeIdx = detectColumn(headers, [
-    "配送地点バーコード","配送バーコード番号","配送バーコード","地点バーコード",
-    "地点コード","地点CD","地点ｺｰﾄﾞ","地点番号","地点No","地点NO"
-  ]);
+  const nameIdx = detectColumn(headers, ["氏名", "顧客名", "需要家名", "お客様名", "客先名", "顧客氏名"]);
+  const kanaIdx = detectColumn(headers, ["氏名カナ", "顧客名カナ", "需要家名カナ", "お客様名カナ", "客先名カナ", "カナ", "フリガナ", "ﾌﾘｶﾞﾅ"]);
+  const codeIdx = detectColumn(headers, ["配送地点バーコード", "配送バーコード番号", "配送バーコード", "地点バーコード", "地点コード", "地点CD", "地点ｺｰﾄﾞ", "地点番号", "地点No", "地点NO"]);
 
   if ((nameIdx >= 0 || kanaIdx >= 0) && codeIdx >= 0) {
     const data = buildData(rows, nameIdx, kanaIdx, codeIdx);
@@ -215,27 +303,32 @@ async function handleCSV(file) {
   importMessage.textContent = "列名を自動判定できませんでした。下で列を選択してください。";
 }
 
-searchInput.addEventListener("input", renderResults);
-clearBtn.addEventListener("click", ()=>{ searchInput.value = ""; searchInput.focus(); renderResults(); });
-backBtn.addEventListener("click", ()=>{ detail.classList.add("hidden"); results.classList.remove("hidden"); });
-copyBtn.addEventListener("click", async ()=>{
+["input", "search", "change", "keyup", "compositionend"].forEach(ev =>
+  searchInput.addEventListener(ev, renderResults)
+);
+const searchBtn = $("searchBtn");
+searchBtn.addEventListener("click", renderResults);
+clearBtn.addEventListener("click", () => { searchInput.value = ""; searchInput.focus(); renderResults(); });
+backBtn.addEventListener("click", () => { detail.classList.add("hidden"); results.classList.remove("hidden"); });
+copyBtn.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(detailCode.textContent);
     copyBtn.textContent = "コピーしました";
   } catch {
     copyBtn.textContent = "長押しでコピーしてください";
   }
-  setTimeout(()=>copyBtn.textContent="バーコード番号をコピー",1200);
+  setTimeout(() => copyBtn.textContent = "バーコード番号をコピー", 1200);
 });
 
-settingsBtn.addEventListener("click", ()=>settingsModal.classList.remove("hidden"));
-closeSettingsBtn.addEventListener("click", ()=>settingsModal.classList.add("hidden"));
+settingsBtn.addEventListener("click", () => settingsModal.classList.remove("hidden"));
+closeSettingsBtn.addEventListener("click", () => settingsModal.classList.add("hidden"));
 
-csvFile.addEventListener("change", async ()=>{
+csvFile.addEventListener("change", async () => {
   const file = csvFile.files?.[0];
   if (!file) return;
-  try { await handleCSV(file); }
-  catch (e) {
+  try {
+    await handleCSV(file);
+  } catch (e) {
     console.error(e);
     importMessage.textContent = "CSV読み込みでエラーが発生しました。";
   } finally {
@@ -243,7 +336,7 @@ csvFile.addEventListener("change", async ()=>{
   }
 });
 
-applyMappingBtn.addEventListener("click", ()=>{
+applyMappingBtn.addEventListener("click", () => {
   if (!pendingRows) return;
   const nameIdx = Number(nameColumn.value);
   const kanaIdx = Number(kanaColumn.value);
@@ -261,10 +354,11 @@ applyMappingBtn.addEventListener("click", ()=>{
   renderResults();
 });
 
-clearDataBtn.addEventListener("click", ()=>{
+clearDataBtn.addEventListener("click", () => {
   if (!confirm("登録済みの客先データを削除しますか？")) return;
   localStorage.removeItem(DATA_KEY);
   localStorage.removeItem(META_KEY);
+  OLD_DATA_KEYS.forEach(k => localStorage.removeItem(k));
   customers = [];
   updateMeta();
   renderResults();
@@ -272,10 +366,10 @@ clearDataBtn.addEventListener("click", ()=>{
 });
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", async ()=>{
+  window.addEventListener("load", async () => {
     try {
       const registration = await navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" });
-      registration.update().catch(()=>{});
+      await registration.update().catch(() => {});
     } catch {}
   });
 }

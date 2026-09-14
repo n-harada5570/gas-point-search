@@ -1,5 +1,5 @@
-const CACHE = "gas-point-search-v4";
-const ASSETS = ["./","./index.html","./style.css","./app.js","./manifest.webmanifest"];
+const CACHE = "gas-point-search-v10";
+const ASSETS = ["./","./index.html","./style.css?v=10","./app.js?v=10","./manifest.webmanifest"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
@@ -17,7 +17,7 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    fetch(e.request, {cache:"no-store"})
+    fetch(e.request, {cache:"reload"})
       .then(response => {
         if (response.ok) {
           const copy = response.clone();

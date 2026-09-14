@@ -9,20 +9,21 @@
   <meta name="theme-color" content="#ffffff">
   <link rel="manifest" href="manifest.webmanifest">
   <title>ガス配送 地点コード検索</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <main class="app">
   <header class="header">
     <div>
       <h1>地点コード検索</h1>
-      <div class="subtitle">ガス配送用</div>
+      <div class="subtitle">ガス配送用 v10</div>
     </div>
     <button id="settingsBtn" class="icon-btn" type="button" aria-label="設定">⚙︎</button>
   </header>
 
   <section class="search-wrap">
-    <input id="searchInput" type="search" placeholder="氏名・カナを入力" autocomplete="off" autocapitalize="off">
+    <input id="searchInput" type="text" placeholder="氏名・カナを入力" autocomplete="off" autocapitalize="off">
+    <button id="searchBtn" type="button" class="search-btn">検索</button>
     <button id="clearBtn" type="button">クリア</button>
   </section>
 
@@ -48,9 +49,9 @@
       <button id="copyBtn" class="primary" type="button">バーコード番号をコピー</button>
 
       <div class="barcode-area">
-        <div class="label">バーコード</div>
+        <div class="label">バーコード（Code 128B）</div>
         <div id="barcodeMount" class="barcode-box">
-          <div class="barcode-placeholder">バーコード規格確認後にここへ実装</div>
+          <img id="barcodeImage" class="barcode-image" alt="配送地点バーコード">
         </div>
       </div>
     </div>
@@ -90,6 +91,6 @@
   </div>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
